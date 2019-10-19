@@ -5,8 +5,8 @@
 #include <fstream>
 #include <sstream>
 #include <cstdlib>
-
-
+#include <unordered_map>
+#include<algorithm>
 // Format checker just assumes you have Alarm.bif and Solved_Alarm.bif (your file) in current directory
 using namespace std;
 
@@ -20,6 +20,8 @@ private:
 	int nvalues;  // Number of categories a variable represented by this node can take
 	vector<string> values; // Categories of possible values
 	vector<float> CPT; // conditional probability table as a 1-d array . Look for BIF format to understand its meaning
+    unordered_map<string, int> considerations;
+    vector<string> combinations;
 
 public:
 	// Constructor- a node is initialised with its name and its categories
@@ -29,9 +31,84 @@ public:
 	
 		nvalues=n;
 		values=vals;
-		
-
 	}
+    Graph_Node(){
+
+    }
+    unordered_map<string, int> getConsiderations(){
+        return considerations;
+    }
+    void updateConsideration(string str){
+        considerations[str] = considerations[str]+1;
+    }
+    void get_info(){
+        cout << Node_Name << ", Parents Are: ";
+        for(int i=0; i< Parents.size(); i++){
+            cout << Parents[i] << " ";
+        }
+        cout << "\n\t";
+        for(int i=0; i< CPT.size(); i++){
+            cout << CPT[i] << " ";
+        }
+        cout << "\n";
+    }
+    vector<string> combo(vector<string> combi1, vector<string> combi2){
+        vector<string> temp;
+        int num = combi1.size()*combi2.size();
+        // cout << num << endl;
+        for(int i=0; i< combi1.size(); i++){
+            for(int j=0; j< combi2.size(); j++){
+                string temp1 = combi1[i];
+                temp.push_back(temp1.append(combi2[j]));
+                // cout << temp[temp.size()-1] << "__"; 
+            }
+        }
+        // cout << endl;
+        return temp;
+    }
+    void updateCPT(){
+        int rep = combinations.size()/nvalues;
+        for(int i=0; i< rep; i++){
+            int sum=0;
+            for(int j=i; j< combinations.size(); j=j+rep){
+                sum = sum+considerations[combinations[j]];
+            }
+            if(sum != 0)
+                for(int j=i; j< combinations.size(); j=j+rep){
+                    CPT[j] = considerations[combinations[j]]/(1.0*sum);
+                    // cout << CPT[j] << "___";
+                }
+            else
+                for(int j=i; j< combinations.size(); j=j+rep){
+                    CPT[j] = 0;
+                }
+            // cout << sum << endl;
+
+        }
+    }
+    void initializeCons(vector<vector<string>> parent_values){
+        if(parent_values.size() == 0){
+            combinations = values;
+            for(int i=0; i< values.size(); i++){
+                considerations[values[i]] = 0;
+            }
+            return;
+        }
+        vector<string> result = combo(values, parent_values[0]);
+        for(int i=1; i<Parents.size(); i++)
+        {
+            result = combo(result, parent_values[i]);
+        }
+        for(int i=0; i<result.size(); i++)
+        {
+            considerations[result[i]] = 0;
+        }
+        combinations = result;
+        // for(int i=0; i< combinations.size(); i++){
+        //     cout << combinations[i] << "---";
+        // }
+        cout << endl;
+    }
 	string get_name()
 	{
 		return Node_Name;
@@ -86,15 +163,20 @@ public:
  // The whole network represted as a list of nodes
 class network{
 
-	list <Graph_Node> Pres_Graph;
-
 public:
+    vector <Graph_Node> Pres_Graph;
+    unordered_map<string, int> variableIndices;
 	int addNode(Graph_Node node)
 	{
 		Pres_Graph.push_back(node);
 		return 0;
 	}
     
+    void makePairs(){
+        for(int i=0; i< Pres_Graph.size(); i++){
+            variableIndices[Pres_Graph[i].get_name()] = i;
+        }
+    }
     
 	int netSize()
 	{
@@ -103,41 +185,29 @@ public:
     // get the index of node with a given name
     int get_index(string val_name)
     {
-        list<Graph_Node>::iterator listIt;
-        int count=0;
-        for(listIt=Pres_Graph.begin();listIt!=Pres_Graph.end();listIt++)
-        {
-            if(listIt->get_name().compare(val_name)==0)
-                return count;
-            count++;
-        }
+        if(variableIndices.find(val_name) != variableIndices.end())
+            return variableIndices.find(val_name)->second;
         return -1;
     }
-// get the node at nth index
-    list<Graph_Node>::iterator get_nth_node(int n)
-    {
-       list<Graph_Node>::iterator listIt;
-        int count=0;
-        for(listIt=Pres_Graph.begin();listIt!=Pres_Graph.end();listIt++)
-        {
-            if(count==n)
-                return listIt;
-            count++;
+    void get_all_info(){
+        cout << Pres_Graph.size() << endl;
+        for(int i=0; i< Pres_Graph.size(); i++){
+            Pres_Graph[i].get_info();
         }
-        return listIt; 
+    }
+// get the node at nth index
+    Graph_Node get_nth_node(int n)
+    {
+       return Pres_Graph[n];
     }
     //get the iterator of a node with a given name
-    list<Graph_Node>::iterator search_node(string val_name)
+    Graph_Node search_node(string val_name)
     {
-        list<Graph_Node>::iterator listIt;
-        for(listIt=Pres_Graph.begin();listIt!=Pres_Graph.end();listIt++)
-        {
-            if(listIt->get_name().compare(val_name)==0)
-                return listIt;
-        }
-    
+        // Pair temp = variableIndices.find(val_name)
+        if(variableIndices.find(val_name) == variableIndices.end()){
             cout<<"node not found\n";
-        return listIt;
+        }
+        return Pres_Graph[variableIndices.find(val_name)->second];
     }
 	
 
@@ -152,6 +222,7 @@ network read_network()
   	string temp;
   	string name;
   	vector<string> values;
+    bool stat = false;
   	
     if (myfile.is_open())
     {
@@ -159,8 +230,6 @@ network read_network()
     	{
     		stringstream ss;
       		getline (myfile,line);
-      		
-      		
       		ss.str(line);
      		ss>>temp;
      		
@@ -194,26 +263,30 @@ network read_network()
      		}
      		else if(temp.compare("probability")==0)
      		{
-                    
+                    if(!stat){
+                        stat=true;
+                        Alarm.makePairs();
+                    }
      				ss>>temp;
      				ss>>temp;
      				
-                    list<Graph_Node>::iterator listIt;
-                    list<Graph_Node>::iterator listIt1;
-     				listIt=Alarm.search_node(temp);
+                    Graph_Node vectorIt;
+                    Graph_Node vectorIt1;
+     				vectorIt=Alarm.search_node(temp);
+                    string nodeName = temp;
                     int index=Alarm.get_index(temp);
                     ss>>temp;
                     values.clear();
      				while(temp.compare(")")!=0)
      				{
-                        listIt1=Alarm.search_node(temp);
-                        listIt1->add_child(index);
+                        vectorIt1=Alarm.search_node(temp);
+                        vectorIt1.add_child(index);
      					values.push_back(temp);
      					
      					ss>>temp;
 
     				}
-                    listIt->set_Parents(values);
+                    vectorIt.set_Parents(values);
     				getline (myfile,line);
      				stringstream ss2;
                     
@@ -235,8 +308,8 @@ network read_network()
 
     				}
                     
-                    listIt->set_CPT(curr_CPT);
-
+                    vectorIt.set_CPT(curr_CPT);
+                    Alarm.Pres_Graph[Alarm.variableIndices[nodeName]] = vectorIt;
 
      		}
             else
@@ -249,26 +322,138 @@ network read_network()
     		
     		
     	}
-    	
-    	if(find==1)
-    	myfile.close();
+        for(int i=0; i<Alarm.Pres_Graph.size(); i++)
+        {
+            vector<vector<string>> parent_values;
+            // cout << Alarm.Pres_Graph[i].get_Parents().size() << " jlehrfo" << endl;
+            for(int j=0; j<Alarm.Pres_Graph[i].get_Parents().size(); j++)
+            {
+                string temp = Alarm.Pres_Graph[i].get_Parents()[j];
+                parent_values.push_back(Alarm.Pres_Graph[Alarm.variableIndices[temp]].get_values());
+                // cout << Alarm.Pres_Graph[Alarm.variableIndices[temp]].get_values().size() << endl;
+            }
+            // cout << "2" << endl;
+            Alarm.Pres_Graph[i].initializeCons(parent_values);
+            // cout << "3" << endl;
+        }
+        myfile.close();
+       
   	}
-  	
   	return Alarm;
 }
 
-
-int main()
-{
-	network Alarm;
-	Alarm=read_network();
-    
-// Example: to do something
-	cout<<"Perfect! Hurrah! \n";
-    
+vector<vector<string>> parse_record(int numVariables){
+    string line;
+    ifstream myfile("records.dat");
+    string temp;
+    string name;
+    vector<vector<string>> lines;
+    //int line_number =0;
+    if(myfile.is_open()){
+        while(!myfile.eof()){
+            stringstream ss;
+            vector<string> temp1;
+            getline (myfile,line);
+            ss.str(line);
+            // ss >> temp;
+            // cout << temp << " ";
+            // temp1.push_back(temp);
+            for(int i=0; i< numVariables; i++){
+                ss >> temp;
+                // cout << temp << " ";
+                temp1.push_back(temp);
+            }
+            lines.push_back(temp1);
+            // cout << temp1.size() << endl;
+            //line_number++;
+        }
+    }
+    myfile.close();
+    return lines;
+}
+vector<vector<int>> sortData(vector<vector<string>> data, network alarm){
+    vector<vector<int>> noData;
+    for(int i=0; i< alarm.Pres_Graph.size(); i++){
+        vector<int> temp;
+        noData.push_back(temp);
+    }
+    for(int i=0; i< data.size(); i++){
+        for(int j=0; j< data[i].size(); j++){
+            if(data[i][j].compare("\"?\"") == 0)
+                noData[j].push_back(i);
+        }
+    }
+    cout << "no data size " << noData.size() << endl;
+    return noData;
 }
 
 
 
+int main(){
+	network Alarm;
+    cout << "1" << endl;
+	Alarm=read_network();
+    cout << "2" << endl;
+    int numVariables = Alarm.Pres_Graph.size();
+    vector<vector<string>> data = parse_record(numVariables);
+    int numLines = data.size();
+    cout << numLines << endl;
+    vector<int> numOfConsiderations;
+    // for(int i=0; i< data.size(); i++){
+    //     // cout << "hello" << endl;
+    //     for(int j=0; j< data[i].size(); j++){
+    //         cout << data[i][j] << " ";
+    //     }
+    //     cout << endl;
+    // }
+    vector<vector<int>> noData = sortData(data, Alarm);
+    for(int i=0; i< noData.size(); i++){
+        cout << Alarm.get_nth_node(i).get_name() << " : ";
+        // cout << "hello" << endl;
+        for(int j=0; j< noData[i].size(); j++){
+            cout << noData[i][j] << " ";
+        }
+        cout << endl;
+    }
+    Alarm.get_all_info();
+    for(int i=0; i< numVariables; i++){
+        Graph_Node presVariable = Alarm.Pres_Graph[i];
+        vector<string> parents = presVariable.get_Parents();
+        vector<int> parentIndices;
+        vector<int> removal = noData[i];
+        int index=0;
+        parentIndices.push_back(i);
+        // cout << removal.size() << " " << i << endl;
+        for(int j=0; j< parents.size(); j++){
+            vector<int> temp = noData[Alarm.get_index(parents[j])];
+            // cout<< "hello " << j << endl;
+            if(temp.size() !=0)
+            {
+                vector<int> temperory(removal.size()+temp.size());
+                merge(removal.begin(), removal.end(), temp.begin(), temp.end(), temperory.begin());
+                removal = temperory;
+                // cout<< "hello 6e" << j << endl;
+            }
+            // cout<< "hello " << j << endl;
+            parentIndices.push_back(Alarm.get_index(parents[j]));
+        }
+        for(int j=0; j< numLines; j++){
+            if(j==removal[index]){
+                index++;
+                continue;
+            }
+            vector<string> line = data[j];
+            string tempStr="";
+            for(int k=0; k< parentIndices.size(); k++){
+                tempStr = tempStr.append(line[parentIndices[k]]);
+            }
+            // cout << tempStr << endl;
+            presVariable.updateConsideration(tempStr);
+            // cout << "updated" << presVariable.getConsiderations()[tempStr] << endl;
+        }
+        presVariable.updateCPT();
+        Alarm.Pres_Graph[i] = presVariable;
+    }
+    Alarm.get_all_info();
 
-
+}
