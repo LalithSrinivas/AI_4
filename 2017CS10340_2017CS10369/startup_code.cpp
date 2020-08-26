@@ -87,7 +87,7 @@ public:
         if(parent_values.size() == 0){
             combinations = values;
             for(int i=0; i< values.size(); i++){
-                considerations[values[i]] = 0;
+                considerations[values[i]] = 1;
             }
             return;
         }

@@ -87,7 +87,7 @@ public:
         if(parent_values.size() == 0){
             combinations = values;
             for(int i=0; i< values.size(); i++){
-                considerations[values[i]] = 0;
+                considerations[values[i]] = 2;
             }
             return;
         }
@@ -558,9 +558,9 @@ int main(int argc, const char * argv[]){
             if(cpt[j] > 0.0001 && cpt[j] < 1)
                 *of << setprecision(4) << cpt[j] << " ";
             else if(cpt[j] < 0.0001)
-                *of << "0.0001" << " ";
+                *of << "0.01" << " ";
             else
-                *of << "0.9999" << " ";
+                *of << "0.99" << " ";
         }
         *of << ";\n}\n";
     }
